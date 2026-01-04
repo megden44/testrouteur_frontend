@@ -2,32 +2,79 @@
 <html>
 <head>
   <meta charset="utf-8">
-  <title>Shortest Sea Path</title>
+  <title>Chemin Maritime Interactif</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" 
+        integrity="sha256-sA+qZ9n0PLh4jG0Vb95xhH7R7H+Tm0bF9D1R9g7r2Xk=" crossorigin=""/>
+  <style>
+    body { margin:0; padding:0; font-family: sans-serif; }
+    #map { height: 70vh; width: 100%; }
+    #controls { padding: 10px; background:#f0f0f0; }
+    input { width: 80px; padding:4px; margin-right:5px; }
+    button { padding: 6px 12px; cursor:pointer; }
+    label { margin-right:5px; }
+  </style>
 </head>
 <body>
 
-<h2>Chemin maritime</h2>
-<button onclick="compute()">Calculer</button>
-<pre id="output"></pre>
+<div id="controls">
+  <label>Start Lat:</label><input type="number" id="start_lat" value="46" step="0.01">
+  <label>Start Lon:</label><input type="number" id="start_lon" value="-2.38" step="0.01">
+  <label>End Lat:</label><input type="number" id="end_lat" value="49.2" step="0.01">
+  <label>End Lon:</label><input type="number" id="end_lon" value="-1.82" step="0.01">
+  <button onclick="compute()">Calculer</button>
+  <p id="status"></p>
+</div>
+
+<div id="map"></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" 
+        integrity="sha256-o9N1j1k1QFfru8kG0I+XgLk0s9LgxYzB4RvyQ3WhuBM=" crossorigin=""></script>
 
 <script>
-console.log("JS chargé");
+const API_URL = "https://testrouteur-production.up.railway.app/path"; // ton backend
 
-const API_URL = "https://testrouteur-production.up.railway.app/path";
+// Initialisation de la carte centrée sur la zone
+const map = L.map('map').setView([47.5, -2], 6);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 18 }).addTo(map);
+
+let pathLayer = null; // couche pour le chemin
+let startMarker = null;
+let endMarker = null;
 
 function compute() {
-  fetch(`${API_URL}?start_lat=46&start_lon=-2.38&end_lat=49.2&end_lon=-1.82`)
+  const start_lat = parseFloat(document.getElementById('start_lat').value);
+  const start_lon = parseFloat(document.getElementById('start_lon').value);
+  const end_lat = parseFloat(document.getElementById('end_lat').value);
+  const end_lon = parseFloat(document.getElementById('end_lon').value);
+
+  document.getElementById('status').textContent = "Calcul en cours…";
+
+  fetch(`${API_URL}?start_lat=${start_lat}&start_lon=${start_lon}&end_lat=${end_lat}&end_lon=${end_lon}`)
     .then(r => r.json())
     .then(data => {
-      console.log("Données reçues :", data); // <- ajoute ça
-      document.getElementById("output").textContent =
-        JSON.stringify(data, null, 2);
+      document.getElementById('status').textContent = `Chemin reçu : ${data.length} points`;
+
+      // Supprimer ancien chemin si existant
+      if (pathLayer) map.removeLayer(pathLayer);
+      if (startMarker) map.removeLayer(startMarker);
+      if (endMarker) map.removeLayer(endMarker);
+
+      // Ajouter la polyligne du chemin
+      const latlngs = data.map(p => [p.lat, p.lon]);
+      pathLayer = L.polyline(latlngs, {color:'red', weight:3}).addTo(map);
+
+      // Ajouter marqueurs départ/arrivée
+      startMarker = L.marker([start_lat, start_lon], {title:"Départ"}).addTo(map);
+      endMarker = L.marker([end_lat, end_lon], {title:"Arrivée"}).addTo(map);
+
+      // Ajuster la vue pour inclure tout le chemin
+      map.fitBounds(pathLayer.getBounds());
     })
     .catch(err => {
       console.error("Erreur fetch:", err);
+      document.getElementById('status').textContent = "Erreur lors du calcul";
     });
 }
-
 </script>
 
 </body>
